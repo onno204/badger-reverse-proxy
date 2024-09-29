@@ -1,0 +1,10 @@
+displayName: gerbil
+type: middleware
+
+import: github.com/fosrl/gerbil
+
+summary: Middleware auth bouncer for Fossorial
+
+testData:
+  apiAddress: http://pangolin:3001
+  validToken: abc123
