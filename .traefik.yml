@@ -1,7 +1,7 @@
-displayName: gerbil
+displayName: badger
 type: middleware
 
-import: github.com/fosrl/gerbil
+import: github.com/fosrl/badger
 
 summary: Middleware auth bouncer for Fossorial
 
