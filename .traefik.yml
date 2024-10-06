@@ -6,5 +6,5 @@ import: github.com/fosrl/badger
 summary: Middleware auth bouncer for Fossorial
 
 testData:
-  apiAddress: http://pangolin:3001
-  validToken: abc123
+  apiBaseUrl: http://localhost:3001/api/v1
+  appBaseUrl: http://localhost:3000
