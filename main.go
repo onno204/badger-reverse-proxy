@@ -39,7 +39,7 @@ func (p *Badger) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	cookie, err := req.Cookie(SessionCookieName)
 	if err != nil {
 		// No session cookie, redirect to login
-		originalRequestURL := url.QueryEscape(req.URL.String())
+		originalRequestURL := url.QueryEscape(fmt.Sprintf("%s://%s%s", p.getScheme(req), req.Host, req.URL.RequestURI()))
 		http.Redirect(rw, req, fmt.Sprintf("%s/auth/login?redirect=%s", p.appBaseUrl, originalRequestURL), http.StatusFound)
 		return
 	}
@@ -61,4 +61,11 @@ func (p *Badger) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	p.next.ServeHTTP(rw, req)
+}
+
+func (p *Badger) getScheme(req *http.Request) string {
+	if req.TLS != nil {
+		return "https"
+	}
+	return "http"
 }
