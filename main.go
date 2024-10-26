@@ -35,26 +35,21 @@ func New(ctx context.Context, next http.Handler, config *Config, name string) (h
 }
 
 func (p *Badger) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	// Check if the session cookie exists
 	cookie, err := req.Cookie(SessionCookieName)
 	if err != nil {
-		// No session cookie, redirect to login
 		originalRequestURL := url.QueryEscape(req.URL.String())
 		http.Redirect(rw, req, fmt.Sprintf("%s/auth/login?redirect=%s", p.appBaseUrl, originalRequestURL), http.StatusFound)
 		return
 	}
 
-	// Verify the user with the session ID
 	sessionID := cookie.Value
 	verifyURL := fmt.Sprintf("%s/badger/verify-user?sessionId=%s", p.apiBaseUrl, sessionID)
 
 	resp, err := http.Get(verifyURL)
 	if err != nil || resp.StatusCode != http.StatusOK {
-		// If unauthorized (401), redirect to the homepage
 		if resp != nil && resp.StatusCode == http.StatusUnauthorized {
 			http.Redirect(rw, req, p.appBaseUrl, http.StatusFound)
 		} else {
-			// Handle other errors, possibly log them (you can adjust the error handling here)
 			http.Error(rw, "Internal Server Error", http.StatusInternalServerError)
 		}
 		return

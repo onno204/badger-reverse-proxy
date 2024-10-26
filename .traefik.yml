@@ -1,9 +1,9 @@
-displayName: badger
+displayName: Fossorial Badger
 type: middleware
 
 import: github.com/fosrl/badger
 
-summary: Middleware auth bouncer for Fossorial
+summary: Middleware auth bouncer for Pangolin
 
 testData:
   apiBaseUrl: http://localhost:3001/api/v1

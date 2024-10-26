@@ -1,3 +1,3 @@
 # badger
 
-Custom Traefik plugin middleware for auth
+Middleware auth bouncer for Pangolin
