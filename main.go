@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 )
 
@@ -136,6 +137,14 @@ func (p *Badger) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		http.Error(rw, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
+
+	bodyContent, err := io.ReadAll(resp.Body)
+	if err != nil {
+		http.Error(rw, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	fmt.Println("response body:", string(bodyContent))
 
 	fmt.Println("handling response")
 
