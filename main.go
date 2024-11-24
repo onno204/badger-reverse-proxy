@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
 )
 
 type Config struct {
@@ -86,7 +85,7 @@ func (p *Badger) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	verifyURL := fmt.Sprintf("%s/badger/verify-session", p.apiBaseUrl)
 
-	originalRequestURL := url.QueryEscape(fmt.Sprintf("%s://%s%s", p.getScheme(req), req.Host, req.URL.RequestURI()))
+	originalRequestURL := fmt.Sprintf("%s://%s%s", p.getScheme(req), req.Host, req.URL.RequestURI())
 
 	cookieData := VerifyBody{
 		Sessions: SessionData{
