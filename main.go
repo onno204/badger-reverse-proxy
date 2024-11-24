@@ -60,6 +60,8 @@ func New(ctx context.Context, next http.Handler, config *Config, name string) (h
 }
 
 func (p *Badger) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	fmt.Println("config values are: ", p.apiBaseUrl, p.resourceSessionCookieName, p.sessionQueryParameter, p.userSessionCookieName)
+
 	sess := req.URL.Query().Get(p.sessionQueryParameter)
 	if sess != "" {
 		http.SetCookie(rw, &http.Cookie{
@@ -84,6 +86,8 @@ func (p *Badger) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	fmt.Println("extracted cookies")
 
 	verifyURL := fmt.Sprintf("%s/badger/verify-session", p.apiBaseUrl)
+
+	fmt.Println("verify url is", verifyURL)
 
 	originalRequestURL := fmt.Sprintf("%s://%s%s", p.getScheme(req), req.Host, req.URL.RequestURI())
 
