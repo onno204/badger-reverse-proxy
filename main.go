@@ -75,10 +75,14 @@ func (p *Badger) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		req.URL.RawQuery = query.Encode()
 	}
 
+	fmt.Println("checked for session param")
+
 	cookies := p.extractCookies(req)
 	if sess != "" {
 		cookies.Session = &sess
 	}
+
+	fmt.Println("extracted cookies")
 
 	verifyURL := fmt.Sprintf("%s/badger/verify-session", p.apiBaseUrl)
 
@@ -97,11 +101,15 @@ func (p *Badger) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		TLS:                req.TLS != nil,
 	}
 
+	fmt.Println("built verify body")
+
 	jsonData, err := json.Marshal(cookieData)
 	if err != nil {
 		http.Error(rw, "Internal Server Error", http.StatusInternalServerError) // TODO: redirect to error page
 		return
 	}
+
+	fmt.Println("JSON data:", string(jsonData))
 
 	resp, err := http.Post(verifyURL, "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
@@ -110,10 +118,14 @@ func (p *Badger) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 	defer resp.Body.Close()
 
+	fmt.Println("response status code:", resp.StatusCode)
+
 	if resp.StatusCode != http.StatusOK {
 		http.Error(rw, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
+
+	fmt.Println("de marshalling response")
 
 	var result VerifyResponse
 	err = json.NewDecoder(resp.Body).Decode(&result)
@@ -121,6 +133,8 @@ func (p *Badger) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		http.Error(rw, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
+
+	fmt.Println("handling response")
 
 	if result.RedirectURL != nil && *result.RedirectURL != "" {
 		http.Redirect(rw, req, *result.RedirectURL, http.StatusFound)
@@ -131,6 +145,8 @@ func (p *Badger) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		http.Error(rw, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+
+	fmt.Println("serving authorized")
 
 	p.next.ServeHTTP(rw, req)
 }
