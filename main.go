@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 )
 
@@ -32,8 +31,10 @@ type VerifyBody struct {
 }
 
 type VerifyResponse struct {
-	Valid       bool    `json:"valid"`
-	RedirectURL *string `json:"redirectUrl"`
+	Data struct {
+		Valid       bool    `json:"valid"`
+		RedirectURL *string `json:"redirectUrl"`
+	} `json:"data"`
 }
 
 func CreateConfig() *Config {
@@ -138,15 +139,12 @@ func (p *Badger) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	bodyContent, err := io.ReadAll(resp.Body)
-	if err != nil {
-		http.Error(rw, "Internal Server Error", http.StatusInternalServerError)
+	fmt.Println("handling response")
+
+	if result.Valid {
+		p.next.ServeHTTP(rw, req)
 		return
 	}
-
-	fmt.Println("response body:", string(bodyContent))
-
-	fmt.Println("handling response")
 
 	if result.RedirectURL != nil && *result.RedirectURL != "" {
 		http.Redirect(rw, req, *result.RedirectURL, http.StatusFound)
