@@ -9,27 +9,26 @@ import (
 	"net/url"
 )
 
-const AppSSOSessionCookieName = "session"
-const ResourceSessionCookieName = "resource_session"
-
 type Config struct {
-	AppBaseUrl string `json:"appBaseUrl"`
-	APIBaseUrl string `json:"apiBaseUrl"`
+	APIBaseUrl                string `json:"apiBaseUrl"`
+	SessionQueryParameter     string `json:"sessionQueryParameter"`
+	UserSessionCookieName     string `json:"userSessionCookieName"`
+	ResourceSessionCookieName string `json:"resourceSessionCookieName"`
 }
 
-type CookieData struct {
+type SessionData struct {
 	Session         *string `json:"session"`
 	ResourceSession *string `json:"resource_session"`
 }
 
 type VerifyBody struct {
-	Cookies            CookieData `json:"cookies"`
-	OriginalRequestURL string     `json:"originalRequestURL"`
-	RequestScheme      *string    `json:"scheme"`
-	RequestHost        *string    `json:"host"`
-	RequestPath        *string    `json:"path"`
-	RequestMethod      *string    `json:"method"`
-	TLS                bool       `json:"tls"`
+	Sessions           SessionData `json:"session"`
+	OriginalRequestURL string      `json:"originalRequestURL"`
+	RequestScheme      *string     `json:"scheme"`
+	RequestHost        *string     `json:"host"`
+	RequestPath        *string     `json:"path"`
+	RequestMethod      *string     `json:"method"`
+	TLS                bool        `json:"tls"`
 }
 
 type VerifyResponse struct {
@@ -42,29 +41,51 @@ func CreateConfig() *Config {
 }
 
 type Badger struct {
-	next       http.Handler
-	name       string
-	appBaseUrl string
-	apiBaseUrl string
+	next                      http.Handler
+	name                      string
+	apiBaseUrl                string
+	sessionQueryParameter     string
+	userSessionCookieName     string
+	resourceSessionCookieName string
 }
 
 func New(ctx context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
 	return &Badger{
-		next:       next,
-		name:       name,
-		appBaseUrl: config.AppBaseUrl,
-		apiBaseUrl: config.APIBaseUrl,
+		next:                      next,
+		name:                      name,
+		apiBaseUrl:                config.APIBaseUrl,
+		sessionQueryParameter:     config.SessionQueryParameter,
+		userSessionCookieName:     config.UserSessionCookieName,
+		resourceSessionCookieName: config.ResourceSessionCookieName,
 	}, nil
 }
 
 func (p *Badger) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	sess := req.URL.Query().Get(p.sessionQueryParameter)
+	if sess != "" {
+		http.SetCookie(rw, &http.Cookie{
+			Name:   p.resourceSessionCookieName,
+			Value:  sess,
+			Path:   "/",
+			Domain: req.Host,
+		})
+
+		query := req.URL.Query()
+		query.Del(p.sessionQueryParameter)
+		req.URL.RawQuery = query.Encode()
+	}
+
+	cookies := p.extractCookies(req)
+	if sess != "" {
+		cookies.Session = &sess
+	}
+
 	verifyURL := fmt.Sprintf("%s/badger/verify-session", p.apiBaseUrl)
-	cookies := extractCookies(req)
 
 	originalRequestURL := url.QueryEscape(fmt.Sprintf("%s://%s%s", p.getScheme(req), req.Host, req.URL.RequestURI()))
 
 	cookieData := VerifyBody{
-		Cookies: CookieData{
+		Sessions: SessionData{
 			Session:         cookies.Session,
 			ResourceSession: cookies.ResourceSession,
 		},
@@ -78,7 +99,7 @@ func (p *Badger) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	jsonData, err := json.Marshal(cookieData)
 	if err != nil {
-		http.Error(rw, "Internal Server Error", http.StatusInternalServerError)
+		http.Error(rw, "Internal Server Error", http.StatusInternalServerError) // TODO: redirect to error page
 		return
 	}
 
@@ -114,14 +135,14 @@ func (p *Badger) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	p.next.ServeHTTP(rw, req)
 }
 
-func extractCookies(req *http.Request) CookieData {
-	var cookies CookieData
+func (p *Badger) extractCookies(req *http.Request) SessionData {
+	var cookies SessionData
 
-	if appSSOSessionCookie, err := req.Cookie(AppSSOSessionCookieName); err == nil {
+	if appSSOSessionCookie, err := req.Cookie(p.userSessionCookieName); err == nil {
 		cookies.Session = &appSSOSessionCookie.Value
 	}
 
-	if resourceSessionCookie, err := req.Cookie(ResourceSessionCookieName); err == nil {
+	if resourceSessionCookie, err := req.Cookie(p.resourceSessionCookieName); err == nil {
 		cookies.ResourceSession = &resourceSessionCookie.Value
 	}
 
