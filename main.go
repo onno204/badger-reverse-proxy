@@ -21,7 +21,7 @@ type SessionData struct {
 }
 
 type VerifyBody struct {
-	Sessions           SessionData `json:"session"`
+	Sessions           SessionData `json:"sessions"`
 	OriginalRequestURL string      `json:"originalRequestURL"`
 	RequestScheme      *string     `json:"scheme"`
 	RequestHost        *string     `json:"host"`
