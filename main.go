@@ -11,7 +11,6 @@ import (
 
 type Config struct {
 	APIBaseUrl                string `json:"apiBaseUrl"`
-	SessionQueryParameter     string `json:"sessionQueryParameter"`
 	UserSessionCookieName     string `json:"userSessionCookieName"`
 	ResourceSessionCookieName string `json:"resourceSessionCookieName"`
 }
@@ -41,7 +40,6 @@ type Badger struct {
 	next                      http.Handler
 	name                      string
 	apiBaseUrl                string
-	sessionQueryParameter     string
 	userSessionCookieName     string
 	resourceSessionCookieName string
 }
@@ -51,7 +49,6 @@ func New(ctx context.Context, next http.Handler, config *Config, name string) (h
 		next:                      next,
 		name:                      name,
 		apiBaseUrl:                config.APIBaseUrl,
-		sessionQueryParameter:     config.SessionQueryParameter,
 		userSessionCookieName:     config.UserSessionCookieName,
 		resourceSessionCookieName: config.ResourceSessionCookieName,
 	}, nil
@@ -105,12 +102,12 @@ func (p *Badger) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if !result.Data.Valid { // only do this if for some reason the API doesn't return a redirect and it's not valid
+	if !result.Data.Valid {
 		http.Error(rw, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	fmt.Println("serving authorized")
+	fmt.Println("authorized")
 
 	p.next.ServeHTTP(rw, req)
 }

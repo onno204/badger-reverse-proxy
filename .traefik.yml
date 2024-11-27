@@ -7,6 +7,5 @@ summary: Middleware auth bouncer for Pangolin
 
 testData:
     apiBaseUrl: http://localhost:3001/api/v1
-    sessionQueryParameter: __pang_sess
     userSessionCookieName: session
     resourceSessionCookieName: resource_session
