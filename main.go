@@ -32,16 +32,16 @@ type VerifyResponse struct {
 	} `json:"data"`
 }
 
-func CreateConfig() *Config {
-	return &Config{}
-}
-
 type Badger struct {
 	next                      http.Handler
 	name                      string
 	apiBaseUrl                string
 	userSessionCookieName     string
 	resourceSessionCookieName string
+}
+
+func CreateConfig() *Config {
+	return &Config{}
 }
 
 func New(ctx context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
@@ -76,8 +76,6 @@ func (p *Badger) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	fmt.Println("verify request", string(jsonData))
-
 	resp, err := http.Post(verifyURL, "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
 		http.Error(rw, "Internal Server Error", http.StatusInternalServerError)
@@ -106,8 +104,6 @@ func (p *Badger) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		http.Error(rw, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-
-	fmt.Println("authorized")
 
 	p.next.ServeHTTP(rw, req)
 }
