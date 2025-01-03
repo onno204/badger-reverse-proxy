@@ -8,8 +8,6 @@ This plugin is **required** to be configured alongside [Pangolin](https://github
 
 Learn how to set up [Pangolin](https://github.com/fosrl/pangolin) and Badger in the [Pangolin Documentation](https://github.com/fosrl/pangolin).
 
----
-
 ## Configuration
 
 Badger requires the following configuration parameters to be specified in your [Traefik configuration file](https://doc.traefik.io/traefik/getting-started/configuration-overview/). These coincide with the separate [Pangolin](https://github.com/fosrl/pangolin) configuration file.
@@ -22,14 +20,6 @@ userSessionCookieName: "session"
 resourceSessionCookieName: "resource_session"
 ```
 
----
-
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-## Contact
-
-Please contact us at [support@fossorial.io](mailto:support@fossorial.io).
