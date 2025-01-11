@@ -18,8 +18,9 @@ Badger requires the following configuration parameters to be specified in your [
 
 ```yaml
 apiBaseUrl: "http://localhost:3001/api/v1"
-userSessionCookieName: "session"
-resourceSessionCookieName: "resource_session"
+userSessionCookieName: "p_session"
+resourceSessionCookieName: "p_resource_session"
+accessTokenQueryParam: "p_token"
 ```
 
 ---
