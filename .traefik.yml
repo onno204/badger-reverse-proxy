@@ -9,3 +9,4 @@ testData:
     apiBaseUrl: http://localhost:3001/api/v1
     userSessionCookieName: p_session
     resourceSessionCookieName: p_resource_session
+    accessTokenQueryParam: p_token

@@ -13,6 +13,7 @@ type Config struct {
 	APIBaseUrl                string `json:"apiBaseUrl"`
 	UserSessionCookieName     string `json:"userSessionCookieName"`
 	ResourceSessionCookieName string `json:"resourceSessionCookieName"`
+	AccessTokenQueryParam     string `json:"accessTokenQueryParam"`
 }
 
 type VerifyBody struct {
@@ -22,6 +23,7 @@ type VerifyBody struct {
 	RequestHost        *string           `json:"host"`
 	RequestPath        *string           `json:"path"`
 	RequestMethod      *string           `json:"method"`
+	AccessToken        *string           `json:"accessToken,omitempty"`
 	TLS                bool              `json:"tls"`
 }
 
@@ -38,6 +40,7 @@ type Badger struct {
 	apiBaseUrl                string
 	userSessionCookieName     string
 	resourceSessionCookieName string
+	accessTokenQueryParam     string
 }
 
 func CreateConfig() *Config {
@@ -51,14 +54,27 @@ func New(ctx context.Context, next http.Handler, config *Config, name string) (h
 		apiBaseUrl:                config.APIBaseUrl,
 		userSessionCookieName:     config.UserSessionCookieName,
 		resourceSessionCookieName: config.ResourceSessionCookieName,
+		accessTokenQueryParam:     config.AccessTokenQueryParam,
 	}, nil
 }
 
 func (p *Badger) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	cookies := p.extractCookies(req)
 
+	var accessToken *string
+	queryValues := req.URL.Query()
+	if token := queryValues.Get(p.accessTokenQueryParam); token != "" {
+		accessToken = &token
+		queryValues.Del(p.accessTokenQueryParam) 
+	}
+
+	cleanedQuery := queryValues.Encode()
+	originalRequestURL := fmt.Sprintf("%s://%s%s", p.getScheme(req), req.Host, req.URL.Path)
+	if cleanedQuery != "" {
+		originalRequestURL = fmt.Sprintf("%s?%s", originalRequestURL, cleanedQuery)
+	}
+
 	verifyURL := fmt.Sprintf("%s/badger/verify-session", p.apiBaseUrl)
-	originalRequestURL := fmt.Sprintf("%s://%s%s", p.getScheme(req), req.Host, req.URL.RequestURI())
 
 	cookieData := VerifyBody{
 		Sessions:           cookies,
@@ -67,6 +83,7 @@ func (p *Badger) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		RequestHost:        &req.Host,
 		RequestPath:        &req.URL.Path,
 		RequestMethod:      &req.Method,
+		AccessToken:        accessToken,
 		TLS:                req.TLS != nil,
 	}
 
@@ -82,6 +99,11 @@ func (p *Badger) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 	defer resp.Body.Close()
+
+	// pass through cookies
+	for _, setCookie := range resp.Header["Set-Cookie"] {
+		rw.Header().Add("Set-Cookie", setCookie)
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		http.Error(rw, "Internal Server Error", http.StatusInternalServerError)
