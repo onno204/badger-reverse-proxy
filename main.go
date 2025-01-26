@@ -10,10 +10,19 @@ import (
 )
 
 type Config struct {
-	APIBaseUrl                string `json:"apiBaseUrl"`
-	UserSessionCookieName     string `json:"userSessionCookieName"`
-	ResourceSessionCookieName string `json:"resourceSessionCookieName"`
-	AccessTokenQueryParam     string `json:"accessTokenQueryParam"`
+	APIBaseUrl                  string `json:"apiBaseUrl"`
+	UserSessionCookieName       string `json:"userSessionCookieName"`
+	AccessTokenQueryParam       string `json:"accessTokenQueryParam"`
+	ResourceSessionRequestParam string `json:"resourceSessionRequestParam"`
+}
+
+type Badger struct {
+	next                        http.Handler
+	name                        string
+	apiBaseUrl                  string
+	userSessionCookieName       string
+	accessTokenQueryParam       string
+	resourceSessionRequestParam string
 }
 
 type VerifyBody struct {
@@ -34,13 +43,16 @@ type VerifyResponse struct {
 	} `json:"data"`
 }
 
-type Badger struct {
-	next                      http.Handler
-	name                      string
-	apiBaseUrl                string
-	userSessionCookieName     string
-	resourceSessionCookieName string
-	accessTokenQueryParam     string
+type ExchangeSessionBody struct {
+	RequestToken *string `json:"requestToken"`
+	RequestHost  *string `json:"host"`
+}
+
+type ExchangeSessionResponse struct {
+	Data struct {
+		Valid  bool    `json:"valid"`
+		Cookie *string `json:"cookie"`
+	} `json:"data"`
 }
 
 func CreateConfig() *Config {
@@ -49,12 +61,12 @@ func CreateConfig() *Config {
 
 func New(ctx context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
 	return &Badger{
-		next:                      next,
-		name:                      name,
-		apiBaseUrl:                config.APIBaseUrl,
-		userSessionCookieName:     config.UserSessionCookieName,
-		resourceSessionCookieName: config.ResourceSessionCookieName,
-		accessTokenQueryParam:     config.AccessTokenQueryParam,
+		next:                        next,
+		name:                        name,
+		apiBaseUrl:                  config.APIBaseUrl,
+		userSessionCookieName:       config.UserSessionCookieName,
+		accessTokenQueryParam:       config.AccessTokenQueryParam,
+		resourceSessionRequestParam: config.ResourceSessionRequestParam,
 	}, nil
 }
 
@@ -63,9 +75,53 @@ func (p *Badger) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	var accessToken *string
 	queryValues := req.URL.Query()
+
+	if sessionRequestValue := queryValues.Get(p.resourceSessionRequestParam); sessionRequestValue != "" {
+		body := ExchangeSessionBody{
+			RequestToken: &sessionRequestValue,
+			RequestHost:  &req.Host,
+		}
+
+		jsonData, err := json.Marshal(body)
+		if err != nil {
+			http.Error(rw, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+
+		verifyURL := fmt.Sprintf("%s/badger/exchange-session", p.apiBaseUrl)
+		resp, err := http.Post(verifyURL, "application/json", bytes.NewBuffer(jsonData))
+		if err != nil {
+			http.Error(rw, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+		defer resp.Body.Close()
+
+		var result ExchangeSessionResponse
+		err = json.NewDecoder(resp.Body).Decode(&result)
+		if err != nil {
+			http.Error(rw, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+
+		if result.Data.Cookie != nil && *result.Data.Cookie != "" {
+			rw.Header().Add("Set-Cookie", *result.Data.Cookie)
+
+			queryValues.Del(p.resourceSessionRequestParam)
+			cleanedQuery := queryValues.Encode()
+			originalRequestURL := fmt.Sprintf("%s://%s%s", p.getScheme(req), req.Host, req.URL.Path)
+			if cleanedQuery != "" {
+				originalRequestURL = fmt.Sprintf("%s?%s", originalRequestURL, cleanedQuery)
+			}
+
+			fmt.Println("Got exchange token, redirecting to", originalRequestURL)
+			http.Redirect(rw, req, originalRequestURL, http.StatusFound)
+			return
+		}
+	}
+
 	if token := queryValues.Get(p.accessTokenQueryParam); token != "" {
 		accessToken = &token
-		queryValues.Del(p.accessTokenQueryParam) 
+		queryValues.Del(p.accessTokenQueryParam)
 	}
 
 	cleanedQuery := queryValues.Encode()
@@ -100,7 +156,6 @@ func (p *Badger) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 	defer resp.Body.Close()
 
-	// pass through cookies
 	for _, setCookie := range resp.Header["Set-Cookie"] {
 		rw.Header().Add("Set-Cookie", setCookie)
 	}
@@ -118,23 +173,29 @@ func (p *Badger) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	if result.Data.RedirectURL != nil && *result.Data.RedirectURL != "" {
+		fmt.Println("Badger: Redirecting to", *result.Data.RedirectURL)
 		http.Redirect(rw, req, *result.Data.RedirectURL, http.StatusFound)
 		return
 	}
 
-	if !result.Data.Valid {
-		http.Error(rw, "Unauthorized", http.StatusUnauthorized)
+	if result.Data.Valid {
+		fmt.Println("Badger: Valid session")
+		p.next.ServeHTTP(rw, req)
 		return
 	}
 
-	p.next.ServeHTTP(rw, req)
+	http.Error(rw, "Unauthorized", http.StatusUnauthorized)
 }
 
 func (p *Badger) extractCookies(req *http.Request) map[string]string {
 	cookies := make(map[string]string)
+	isSecureRequest := req.TLS != nil
 
 	for _, cookie := range req.Cookies() {
-		if strings.HasPrefix(cookie.Name, p.userSessionCookieName) || strings.HasPrefix(cookie.Name, p.resourceSessionCookieName) {
+		if strings.HasPrefix(cookie.Name, p.userSessionCookieName) {
+			if cookie.Secure && !isSecureRequest {
+				continue
+			}
 			cookies[cookie.Name] = cookie.Value
 		}
 	}
