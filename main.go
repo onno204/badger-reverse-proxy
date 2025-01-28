@@ -34,6 +34,7 @@ type VerifyBody struct {
 	RequestMethod      *string           `json:"method"`
 	AccessToken        *string           `json:"accessToken,omitempty"`
 	TLS                bool              `json:"tls"`
+	RequestIP          *string           `json:"requestIp,omitempty"`
 }
 
 type VerifyResponse struct {
@@ -46,6 +47,7 @@ type VerifyResponse struct {
 type ExchangeSessionBody struct {
 	RequestToken *string `json:"requestToken"`
 	RequestHost  *string `json:"host"`
+	RequestIP    *string `json:"requestIp,omitempty"`
 }
 
 type ExchangeSessionResponse struct {
@@ -80,6 +82,7 @@ func (p *Badger) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		body := ExchangeSessionBody{
 			RequestToken: &sessionRequestValue,
 			RequestHost:  &req.Host,
+			RequestIP:    &req.RemoteAddr,
 		}
 
 		jsonData, err := json.Marshal(body)
@@ -141,6 +144,7 @@ func (p *Badger) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		RequestMethod:      &req.Method,
 		AccessToken:        accessToken,
 		TLS:                req.TLS != nil,
+		RequestIP:          &req.RemoteAddr,
 	}
 
 	jsonData, err := json.Marshal(cookieData)
