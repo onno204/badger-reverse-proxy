@@ -12,7 +12,6 @@ import (
 type Config struct {
 	APIBaseUrl                  string `json:"apiBaseUrl"`
 	UserSessionCookieName       string `json:"userSessionCookieName"`
-	AccessTokenQueryParam       string `json:"accessTokenQueryParam"`
 	ResourceSessionRequestParam string `json:"resourceSessionRequestParam"`
 }
 
@@ -21,7 +20,6 @@ type Badger struct {
 	name                        string
 	apiBaseUrl                  string
 	userSessionCookieName       string
-	accessTokenQueryParam       string
 	resourceSessionRequestParam string
 }
 
@@ -32,15 +30,17 @@ type VerifyBody struct {
 	RequestHost        *string           `json:"host"`
 	RequestPath        *string           `json:"path"`
 	RequestMethod      *string           `json:"method"`
-	AccessToken        *string           `json:"accessToken,omitempty"`
 	TLS                bool              `json:"tls"`
 	RequestIP          *string           `json:"requestIp,omitempty"`
+	Headers            map[string]string `json:"headers,omitempty"`
+	Query              map[string]string `json:"query,omitempty"`
 }
 
 type VerifyResponse struct {
 	Data struct {
-		Valid       bool    `json:"valid"`
-		RedirectURL *string `json:"redirectUrl"`
+		Valid           bool              `json:"valid"`
+		RedirectURL     *string           `json:"redirectUrl"`
+		ResponseHeaders map[string]string `json:"responseHeaders,omitempty"`
 	} `json:"data"`
 }
 
@@ -52,8 +52,9 @@ type ExchangeSessionBody struct {
 
 type ExchangeSessionResponse struct {
 	Data struct {
-		Valid  bool    `json:"valid"`
-		Cookie *string `json:"cookie"`
+		Valid           bool              `json:"valid"`
+		Cookie          *string           `json:"cookie"`
+		ResponseHeaders map[string]string `json:"responseHeaders,omitempty"`
 	} `json:"data"`
 }
 
@@ -67,7 +68,6 @@ func New(ctx context.Context, next http.Handler, config *Config, name string) (h
 		name:                        name,
 		apiBaseUrl:                  config.APIBaseUrl,
 		userSessionCookieName:       config.UserSessionCookieName,
-		accessTokenQueryParam:       config.AccessTokenQueryParam,
 		resourceSessionRequestParam: config.ResourceSessionRequestParam,
 	}, nil
 }
@@ -75,7 +75,6 @@ func New(ctx context.Context, next http.Handler, config *Config, name string) (h
 func (p *Badger) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	cookies := p.extractCookies(req)
 
-	var accessToken *string
 	queryValues := req.URL.Query()
 
 	if sessionRequestValue := queryValues.Get(p.resourceSessionRequestParam); sessionRequestValue != "" {
@@ -116,15 +115,16 @@ func (p *Badger) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 				originalRequestURL = fmt.Sprintf("%s?%s", originalRequestURL, cleanedQuery)
 			}
 
+			if result.Data.ResponseHeaders != nil {
+				for key, value := range result.Data.ResponseHeaders {
+					rw.Header().Add(key, value)
+				}
+			}
+
 			fmt.Println("Got exchange token, redirecting to", originalRequestURL)
 			http.Redirect(rw, req, originalRequestURL, http.StatusFound)
 			return
 		}
-	}
-
-	if token := queryValues.Get(p.accessTokenQueryParam); token != "" {
-		accessToken = &token
-		queryValues.Del(p.accessTokenQueryParam)
 	}
 
 	cleanedQuery := queryValues.Encode()
@@ -135,6 +135,20 @@ func (p *Badger) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	verifyURL := fmt.Sprintf("%s/badger/verify-session", p.apiBaseUrl)
 
+	headers := make(map[string]string)
+	for name, values := range req.Header {
+		if len(values) > 0 {
+			headers[name] = values[0] // Send only the first value for simplicity
+		}
+	}
+
+	queryParams := make(map[string]string)
+	for key, values := range queryValues {
+		if len(values) > 0 {
+			queryParams[key] = values[0]
+		}
+	}
+
 	cookieData := VerifyBody{
 		Sessions:           cookies,
 		OriginalRequestURL: originalRequestURL,
@@ -142,9 +156,10 @@ func (p *Badger) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		RequestHost:        &req.Host,
 		RequestPath:        &req.URL.Path,
 		RequestMethod:      &req.Method,
-		AccessToken:        accessToken,
 		TLS:                req.TLS != nil,
 		RequestIP:          &req.RemoteAddr,
+		Headers:            headers,
+		Query:              queryParams,
 	}
 
 	jsonData, err := json.Marshal(cookieData)
@@ -174,6 +189,12 @@ func (p *Badger) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		http.Error(rw, "Internal Server Error", http.StatusInternalServerError)
 		return
+	}
+
+	if result.Data.ResponseHeaders != nil {
+		for key, value := range result.Data.ResponseHeaders {
+			rw.Header().Add(key, value)
+		}
 	}
 
 	if result.Data.RedirectURL != nil && *result.Data.RedirectURL != "" {
