@@ -40,6 +40,9 @@ type VerifyResponse struct {
 	Data struct {
 		Valid           bool              `json:"valid"`
 		RedirectURL     *string           `json:"redirectUrl"`
+		Username        *string           `json:"username,omitempty"`
+		Email           *string           `json:"email,omitempty"`
+		Name            *string           `json:"name,omitempty"`
 		ResponseHeaders map[string]string `json:"responseHeaders,omitempty"`
 	} `json:"data"`
 }
@@ -204,6 +207,19 @@ func (p *Badger) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	if result.Data.Valid {
+
+		if result.Data.Username != nil {
+			req.Header.Add("Remote-User", *result.Data.Username)
+		}
+
+		if result.Data.Email != nil {
+			req.Header.Add("Remote-Email", *result.Data.Email)
+		}
+
+		if result.Data.Name != nil {
+			req.Header.Add("Remote-Name", *result.Data.Name)
+		}
+
 		fmt.Println("Badger: Valid session")
 		p.next.ServeHTTP(rw, req)
 		return
