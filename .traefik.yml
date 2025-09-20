@@ -1,7 +1,7 @@
-displayName: Fossorial Badger
+displayName: Fossorial Badger reverse proxy
 type: middleware
 
-import: github.com/onno204/badger
+import: github.com/onno204/badger-reverse-proxy
 
 summary: Middleware auth bouncer for Pangolin with secure proxy support
 
