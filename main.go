@@ -5,14 +5,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"strings"
 )
 
 type Config struct {
-	APIBaseUrl                  string `json:"apiBaseUrl"`
-	UserSessionCookieName       string `json:"userSessionCookieName"`
-	ResourceSessionRequestParam string `json:"resourceSessionRequestParam"`
+	APIBaseUrl                  string  `json:"apiBaseUrl"`
+	UserSessionCookieName       string  `json:"userSessionCookieName"`
+	ResourceSessionRequestParam string  `json:"resourceSessionRequestParam"`
+	ClientIPHeader              *string `json:"clientIpHeader,omitempty"`
 }
 
 type Badger struct {
@@ -21,6 +23,7 @@ type Badger struct {
 	apiBaseUrl                  string
 	userSessionCookieName       string
 	resourceSessionRequestParam string
+	clientIPHeader              *string
 }
 
 type VerifyBody struct {
@@ -72,6 +75,7 @@ func New(ctx context.Context, next http.Handler, config *Config, name string) (h
 		apiBaseUrl:                  config.APIBaseUrl,
 		userSessionCookieName:       config.UserSessionCookieName,
 		resourceSessionRequestParam: config.ResourceSessionRequestParam,
+		clientIPHeader:              config.ClientIPHeader,
 	}, nil
 }
 
@@ -252,25 +256,55 @@ func (p *Badger) getScheme(req *http.Request) string {
 }
 
 func (p *Badger) getClientIP(req *http.Request) *string {
-	ip := req.Header.Get("Cf-Connecting-Ip")
-
-	if ip != "" && strings.Contains(ip, ":") && !strings.Contains(ip, "]") { // If Cf-Connecting-Ip is IPv6 then format it to req.RemoteAddr style so Pangolin can parse it
-		ip = "[" + ip + "]:12345"
-	}
-
-	if ip == "" {
-		ip = req.Header.Get("X-Forwarded-For")
-		if ip != "" {
-			ip = strings.Split(ip, ",")[0] // Use the first IP from the list
-			if strings.Contains(ip, ":") { // If X-Forwarded-For is IPv6 then format it to req.RemoteAddr style so Pangolin can parse it
-				ip = "[" + ip + "]:12345"
-			}
+	// If no specific header is configured, use remote address (safe default)
+	if p.clientIPHeader == nil || *p.clientIPHeader == "" {
+		remoteIP, _, err := net.SplitHostPort(req.RemoteAddr)
+		if err != nil {
+			// If SplitHostPort fails, assume req.RemoteAddr is just an IP
+			remoteIP = req.RemoteAddr
 		}
+		return &remoteIP
 	}
 	
-	if ip == "" {
-		ip = req.RemoteAddr
+	// Get the specified header value
+	headerValue := req.Header.Get(*p.clientIPHeader)
+	if headerValue == "" {
+		// Header not found, fallback to remote address
+		remoteIP, _, err := net.SplitHostPort(req.RemoteAddr)
+		if err != nil {
+			remoteIP = req.RemoteAddr
+		}
+		return &remoteIP
 	}
-
-	return &ip
+	
+	// Special handling for X-Forwarded-For header (contains comma-separated IPs)
+	if strings.ToLower(*p.clientIPHeader) == "x-forwarded-for" {
+		// X-Forwarded-For can contain multiple IPs: "client, proxy1, proxy2"
+		// The first one should be the original client IP
+		ips := strings.Split(headerValue, ",")
+		for _, ip := range ips {
+			ip = strings.TrimSpace(ip)
+			if parsedIP := net.ParseIP(ip); parsedIP != nil {
+				return &ip
+			}
+		}
+		// If no valid IP found in X-Forwarded-For, fallback to remote address
+		remoteIP, _, err := net.SplitHostPort(req.RemoteAddr)
+		if err != nil {
+			remoteIP = req.RemoteAddr
+		}
+		return &remoteIP
+	}
+	
+	// For any other header, validate it's a valid IP and return it
+	if parsedIP := net.ParseIP(headerValue); parsedIP != nil {
+		return &headerValue
+	}
+	
+	// Invalid IP in header, fallback to remote address
+	remoteIP, _, err := net.SplitHostPort(req.RemoteAddr)
+	if err != nil {
+		remoteIP = req.RemoteAddr
+	}
+	return &remoteIP
 }
