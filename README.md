@@ -1,4 +1,7 @@
-# Badger Plugin for Traefik with Pangolin Integration
+# Badger Plugin for Traefik with Pangolin Integration with secure proxy support
+
+Allows the usage of `X-Forwarded-For` and similar headers to determine client IP when behind trusted proxies.
+By default this is disabled to secure against IP spoofing.
 
 Badger is a middleware plugin designed to work with the Traefik reverse proxy in conjunction with [Pangolin](https://github.com/fosrl/pangolin), a multi-tenant tunneled reverse proxy server and management interface with identity and access management. Badger acts as an authentication bouncer, ensuring only authenticated and authorized requests are allowed through the proxy.
 

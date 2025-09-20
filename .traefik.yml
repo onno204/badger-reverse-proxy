@@ -1,11 +1,14 @@
 displayName: Fossorial Badger
 type: middleware
 
-import: github.com/fosrl/badger
+import: github.com/onno204/badger
 
-summary: Middleware auth bouncer for Pangolin
+summary: Middleware auth bouncer for Pangolin with secure proxy support
 
 testData:
-    apiBaseUrl: "http://localhost:3001/api/v1"
-    userSessionCookieName: "p_session_token"
-    resourceSessionRequestParam: "p_session_request"
+  apiBaseUrl: "http://localhost:3001/api/v1"
+  userSessionCookieName: "p_session_token"
+  resourceSessionRequestParam: "p_session_request"
+  clientIpHeader: "X-Forwarded-For"
+  # clientIPHeader: "X-Real-IP"
+  # clientIPHeader: "CF-Connecting-IP"
