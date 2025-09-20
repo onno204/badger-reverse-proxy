@@ -77,14 +77,14 @@ func New(ctx context.Context, next http.Handler, config *Config, name string) (h
 
 func (p *Badger) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	cookies := p.extractCookies(req)
-
+	clientIP := p.getClientIP(req)
 	queryValues := req.URL.Query()
 
 	if sessionRequestValue := queryValues.Get(p.resourceSessionRequestParam); sessionRequestValue != "" {
 		body := ExchangeSessionBody{
 			RequestToken: &sessionRequestValue,
 			RequestHost:  &req.Host,
-			RequestIP:    &req.RemoteAddr,
+			RequestIP:    clientIP,
 		}
 
 		jsonData, err := json.Marshal(body)
@@ -160,7 +160,7 @@ func (p *Badger) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		RequestPath:        &req.URL.Path,
 		RequestMethod:      &req.Method,
 		TLS:                req.TLS != nil,
-		RequestIP:          &req.RemoteAddr,
+		RequestIP:          clientIP,
 		Headers:            headers,
 		Query:              queryParams,
 	}
@@ -249,4 +249,28 @@ func (p *Badger) getScheme(req *http.Request) string {
 		return "https"
 	}
 	return "http"
+}
+
+func (p *Badger) getClientIP(req *http.Request) *string {
+	ip := req.Header.Get("Cf-Connecting-Ip")
+
+	if ip != "" && strings.Contains(ip, ":") && !strings.Contains(ip, "]") { // If Cf-Connecting-Ip is IPv6 then format it to req.RemoteAddr style so Pangolin can parse it
+		ip = "[" + ip + "]:12345"
+	}
+
+	if ip == "" {
+		ip = req.Header.Get("X-Forwarded-For")
+		if ip != "" {
+			ip = strings.Split(ip, ",")[0] // Use the first IP from the list
+			if strings.Contains(ip, ":") { // If X-Forwarded-For is IPv6 then format it to req.RemoteAddr style so Pangolin can parse it
+				ip = "[" + ip + "]:12345"
+			}
+		}
+	}
+	
+	if ip == "" {
+		ip = req.RemoteAddr
+	}
+
+	return &ip
 }
