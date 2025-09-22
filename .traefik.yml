@@ -10,5 +10,3 @@ testData:
   userSessionCookieName: "p_session_token"
   resourceSessionRequestParam: "p_session_request"
   clientIpHeader: "X-Forwarded-For"
-  # clientIPHeader: "X-Real-IP"
-  # clientIPHeader: "CF-Connecting-IP"
